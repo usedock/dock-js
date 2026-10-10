@@ -1,0 +1,37 @@
+{
+  "name": "@usedock/sdk",
+  "version": "0.0.0",
+  "description": "TypeScript SDK for Dock: isolated Linux machines for agents.",
+  "license": "Apache-2.0",
+  "private": false,
+  "type": "module",
+  "repository": { "type": "git", "url": "git+https://github.com/usedock/dock-js.git" },
+  "engines": { "node": ">=18" },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "LICENSE", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "test:scenarios": "vitest run test/scenarios.spec.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.2",
+    "ajv": "^8.17.0",
+    "ajv-formats": "^3.0.1",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4",
+    "yaml": "^2.6.1"
+  }
+}
