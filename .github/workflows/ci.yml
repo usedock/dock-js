@@ -50,17 +50,17 @@ jobs:
       - name: Install from a local path
         run: |
           bun run build
-          scripts/smoke-install.sh "$GITHUB_WORKSPACE"
+          bash scripts/smoke-install.sh "$GITHUB_WORKSPACE"
       - name: Install from a packed tarball
         run: |
           # npm pack runs prepare, so this builds dist from a clean tree
           rm -rf dist
           tarball="$(npm pack --silent --pack-destination "$RUNNER_TEMP")"
-          scripts/smoke-install.sh "$RUNNER_TEMP/$tarball"
+          bash scripts/smoke-install.sh "$RUNNER_TEMP/$tarball"
       - name: Install from a git URL (committed HEAD)
         run: |
           rm -rf dist
-          scripts/smoke-install.sh "git+file://$GITHUB_WORKSPACE"
+          bash scripts/smoke-install.sh "git+file://$GITHUB_WORKSPACE"
 
   gitleaks:
     runs-on: ubuntu-latest
