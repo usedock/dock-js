@@ -37,6 +37,31 @@ jobs:
         env:
           DOCK_SCENARIOS_DIR: ${{ github.workspace }}/dock/sdk-scenarios
 
+  install-from-git:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # oven-sh/setup-bun v2.2.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+      # dev dependencies (typescript) are needed by `npm pack` to run prepare
+      - run: bun install --frozen-lockfile
+      - name: Install from a local path
+        run: |
+          bun run build
+          scripts/smoke-install.sh "$GITHUB_WORKSPACE"
+      - name: Install from a packed tarball
+        run: |
+          # npm pack runs prepare, so this builds dist from a clean tree
+          rm -rf dist
+          tarball="$(npm pack --silent --pack-destination "$RUNNER_TEMP")"
+          scripts/smoke-install.sh "$RUNNER_TEMP/$tarball"
+      - name: Install from a git URL (committed HEAD)
+        run: |
+          rm -rf dist
+          scripts/smoke-install.sh "git+file://$GITHUB_WORKSPACE"
+
   gitleaks:
     runs-on: ubuntu-latest
     timeout-minutes: 10

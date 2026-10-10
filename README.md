@@ -2,17 +2,20 @@
 
 The TypeScript client for [Dock](https://github.com/usedock/dock): isolated Linux machines for agents, on your laptop, your servers, or our cloud.
 
-> **Status:** not published to npm yet; the package name is not claimed. Build it from this repository for now.
+> **Status:** not published to npm yet; the package name is not claimed. Install it from GitHub for now (see below).
 
 Zero runtime dependencies. Uses the global `fetch` (Node 18+, Bun).
 
 ## Install
 
-Not published yet. When it is:
+Not on npm yet. Install straight from GitHub; a `prepare` script builds `dist/` on install (needs `typescript`, which npm, pnpm and bun fetch for git dependencies):
 
 ```sh
-npm install @usedock/sdk
+npm install github:usedock/dock-js
+bun add github:usedock/dock-js
 ```
+
+Once published it will be `npm install @usedock/sdk`.
 
 ## Example
 
