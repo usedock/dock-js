@@ -6,6 +6,8 @@ The TypeScript client for [Dock](https://github.com/usedock/dock): isolated Linu
 
 ## Proposed API: install
 
+Not published yet; the package name is not claimed.
+
 ```sh
 npm install @usedock/sdk
 ```
