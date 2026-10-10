@@ -20,7 +20,8 @@ export interface CreateDockParams {
   cpus?: number
   memoryMiB?: number
   diskGiB?: number
-  ttlSeconds?: number
+  /** Seconds after ready before auto-stop; `null` disables auto-stop. */
+  ttlSeconds?: number | null
   /** Environment variables stored on the Dock. */
   env?: Record<string, string>
   /** Name of a saved environment to apply. */
@@ -35,7 +36,8 @@ export interface UpdateDockParams {
   cpus?: number
   memoryMiB?: number
   diskGiB?: number
-  ttlSeconds?: number
+  /** Seconds after ready before auto-stop; `null` disables auto-stop. */
+  ttlSeconds?: number | null
 }
 
 export interface ListDocksParams {
@@ -68,7 +70,8 @@ export interface ResumeParams {
   cpus?: number
   memoryMiB?: number
   diskGiB?: number
-  ttlSeconds?: number
+  /** Seconds after ready before auto-stop; `null` disables auto-stop. */
+  ttlSeconds?: number | null
   environment?: string
   noEnv?: boolean
 }
@@ -79,7 +82,8 @@ export interface BranchParams {
   cpus?: number
   memoryMiB?: number
   diskGiB?: number
-  ttlSeconds?: number
+  /** Seconds after ready before auto-stop; `null` disables auto-stop. */
+  ttlSeconds?: number | null
   env?: Record<string, string>
   environment?: string
   noEnv?: boolean
@@ -93,7 +97,22 @@ export interface IdempotencyOptions {
 /** Pollable receipt for accepted work such as delete. */
 export interface Operation {
   id: string
-  status?: string
+  status: string
+  targetType?: string
+  targetId?: string
+  [key: string]: unknown
+}
+
+/** What `docks.delete` returns: the API wraps the operation as `{ operation }`. */
+export interface DeleteDockResult {
+  operation: Operation
+  [key: string]: unknown
+}
+
+/** What `docks.stop` and `docks.resume` return: only the id and the new state. */
+export interface DockStateResult {
+  id: string
+  state: string
   [key: string]: unknown
 }
 

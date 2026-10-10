@@ -1,7 +1,7 @@
 import { DockError } from './errors.js'
 
-/** The API caps an exec command at 64 KB. */
-export const MAX_COMMAND_LENGTH = 64 * 1024
+/** The API caps an exec command at 64 KB, counted in UTF-8 bytes. */
+export const MAX_COMMAND_BYTES = 64 * 1024
 
 /** One POSIX shell word: single-quoted, each `'` written as `'\''`. */
 export function shellQuote(value: string): string {
@@ -19,10 +19,11 @@ export function fromBase64(text: string): string {
 export function writeCommand(path: string, content: string): string {
   const quoted = shellQuote(path)
   const command = `mkdir -p -- "$(dirname -- ${quoted})" && printf '%s' '${toBase64(content)}' | base64 -d > ${quoted}`
-  if (command.length > MAX_COMMAND_LENGTH) {
+  const bytes = Buffer.byteLength(command, 'utf8')
+  if (bytes > MAX_COMMAND_BYTES) {
     throw new DockError(
       'validation_error',
-      `File content is too large for one write (command would be ${command.length} bytes, limit ${MAX_COMMAND_LENGTH}; about 48 KB of content)`,
+      `File content is too large for one write (command would be ${bytes} bytes, limit ${MAX_COMMAND_BYTES}; about 48 KB of content)`,
       0,
     )
   }

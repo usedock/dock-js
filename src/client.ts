@@ -3,7 +3,9 @@ import { assertPath, fromBase64, listCommand, readCommand, writeCommand } from '
 import type {
   BranchParams,
   CreateDockParams,
+  DeleteDockResult,
   DockInfo,
+  DockStateResult,
   ExecOptions,
   ExecResult,
   IdempotencyOptions,
@@ -185,13 +187,13 @@ export class DocksApi {
     return this.send({ method: 'POST', path: dockPath(id, '/exec'), body: compact({ ...options, command }) })
   }
 
-  /** Returns when the Dock has stopped. */
-  stop(id: string, options: StopOptions = {}): Promise<DockInfo> {
+  /** Returns `{ id, state }` when the Dock has stopped. */
+  stop(id: string, options: StopOptions = {}): Promise<DockStateResult> {
     return this.send({ method: 'POST', path: dockPath(id, '/stop'), body: compact(options) })
   }
 
-  /** Returns when the Dock is running again. */
-  resume(id: string, params: ResumeParams = {}): Promise<DockInfo> {
+  /** Returns `{ id, state }` when the Dock is running again. */
+  resume(id: string, params: ResumeParams = {}): Promise<DockStateResult> {
     return this.send({ method: 'POST', path: dockPath(id, '/resume'), body: compact(params) })
   }
 
@@ -205,8 +207,8 @@ export class DocksApi {
     })
   }
 
-  /** Deletes the Dock. Sends the required `x-confirm-delete` header; returns a pollable operation. */
-  delete(id: string): Promise<Operation> {
+  /** Deletes the Dock. Sends the required `x-confirm-delete` header; returns `{ operation }` to poll with `operations.get(operation.id)`. */
+  delete(id: string): Promise<DeleteDockResult> {
     return this.send({ method: 'DELETE', path: dockPath(id), headers: { 'x-confirm-delete': id } })
   }
 }

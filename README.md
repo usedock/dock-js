@@ -35,8 +35,8 @@ const copy = await dock.docks.branch(box.id, { name: 'demo-copy' })
 await dock.docks.stop(box.id)
 await dock.docks.resume(box.id)
 
-const op = await dock.docks.delete(box.id) // sends the x-confirm-delete header for you
-console.log((await dock.operations.get(op.id)).status)
+const { operation } = await dock.docks.delete(box.id) // sends the x-confirm-delete header for you
+console.log((await dock.operations.get(operation.id)).status)
 await dock.docks.delete(copy.id)
 ```
 
@@ -46,8 +46,8 @@ await dock.docks.delete(copy.id)
 
 - `dock.docks.create(params, { idempotencyKey? })`, `list({ filter?, all? })`, `get(id)`, `update(id, params)`
 - `dock.docks.exec(id, command, { timeoutSeconds?, env?, cwd? })`
-- `dock.docks.stop(id, { force? })`, `resume(id, params)`, `branch(id, params, { idempotencyKey? })`: return when the host has finished
-- `dock.docks.delete(id)`: returns an operation; `dock.operations.get(id)` polls it
+- `dock.docks.stop(id, { force? })`, `resume(id, params)` (both return `{ id, state }`), `branch(id, params, { idempotencyKey? })`: return when the host has finished
+- `dock.docks.delete(id)`: returns `{ operation }`; `dock.operations.get(operation.id)` polls it
 - `dock.docks.files.write(id, path, content)`, `read(id, path)`, `list(id, path)`
 
 The API has no file routes. The file helpers run one `exec` call: content travels as base64, paths are shell-quoted, and a write is limited to about 48 KB (the 64 KB exec command limit). A non-zero exit or truncated output is a `DockError` with code `file_error`.

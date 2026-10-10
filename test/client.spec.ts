@@ -101,12 +101,15 @@ describe('docks', () => {
     const { dock, server } = await setup(() => ok({ id: ID, name: 'b', state: 'ready' }))
     await dock.docks.get(ID)
     await dock.docks.update(ID, { name: 'b', ttlSeconds: 60 })
+    await dock.docks.update(ID, { ttlSeconds: null })
     expect(server.requests[0]).toMatchObject({ method: 'GET', path: `/v1/docks/${ID}` })
     expect(server.requests[1]).toMatchObject({
       method: 'PATCH',
       path: `/v1/docks/${ID}`,
       body: { name: 'b', ttlSeconds: 60 },
     })
+    // null clears the TTL (disables auto-stop) and must be sent, not dropped like undefined.
+    expect(server.requests[2]?.rawBody).toBe('{"ttlSeconds":null}')
   })
 
   it('exec sends the command and options and returns the result', async () => {
@@ -126,14 +129,14 @@ describe('docks', () => {
   })
 
   it('stop, resume and branch post to their routes', async () => {
+    // The API answers stop and resume with only { id, state }; branch returns the new dock.
     const { dock, server } = await setup((req) =>
-      ok(
-        { id: ID, name: 'a', state: req.path.endsWith('/stop') ? 'archived' : 'ready' },
-        req.path.endsWith('/branch') ? 201 : 202,
-      ),
+      req.path.endsWith('/branch')
+        ? ok({ id: ID, name: 'copy', state: 'ready' }, 201)
+        : ok({ id: ID, state: req.path.endsWith('/stop') ? 'archived' : 'ready' }, 202),
     )
-    expect((await dock.docks.stop(ID, { force: true })).state).toBe('archived')
-    expect((await dock.docks.resume(ID, { cpus: 2 })).state).toBe('ready')
+    expect(await dock.docks.stop(ID, { force: true })).toEqual({ id: ID, state: 'archived' })
+    expect(await dock.docks.resume(ID, { cpus: 2 })).toEqual({ id: ID, state: 'ready' })
     await dock.docks.branch(ID, { name: 'copy' })
     expect(server.requests.map((r) => [r.method, r.path, r.body])).toEqual([
       ['POST', `/v1/docks/${ID}/stop`, { force: true }],
@@ -142,10 +145,17 @@ describe('docks', () => {
     ])
   })
 
-  it('delete sends the confirm header and returns the operation', async () => {
-    const { dock, server } = await setup(() => ok({ id: 'op-1', status: 'pending' }, 202))
-    const op = await dock.docks.delete(ID)
-    expect(op).toMatchObject({ id: 'op-1', status: 'pending' })
+  it('delete sends the confirm header and returns { operation } that operations.get can poll', async () => {
+    // Shape of DocksService.remove: { operation: OperationView }.
+    const { dock, server } = await setup((req) =>
+      req.method === 'DELETE'
+        ? ok({ operation: { id: 'op-1', targetType: 'dock', targetId: ID, status: 'completed' } }, 202)
+        : ok({ id: 'op-1', targetType: 'dock', targetId: ID, status: 'completed' }),
+    )
+    const { operation } = await dock.docks.delete(ID)
+    expect(operation).toEqual({ id: 'op-1', targetType: 'dock', targetId: ID, status: 'completed' })
+    await dock.operations.get(operation.id)
+    expect(server.requests[1]).toMatchObject({ method: 'GET', path: '/v1/operations/op-1' })
     expect(server.requests[0]).toMatchObject({ method: 'DELETE', path: `/v1/docks/${ID}` })
     expect(server.requests[0]?.headers['x-confirm-delete']).toBe(ID)
   })
@@ -240,6 +250,21 @@ describe('files', () => {
       status: 0,
     })
     expect(server.requests).toHaveLength(1)
+  })
+
+  it('counts the command limit in UTF-8 bytes, as the API does', async () => {
+    const { dock, server } = await setup(() => exec())
+    // 80 three-byte characters: the command is under 64K UTF-16 units but over 64 KB of UTF-8.
+    const path = `/home/user/work/${'文'.repeat(80)}.txt`
+    const content = 'x'.repeat(48_900)
+    const units = `mkdir -p -- "$(dirname -- '${path}')" && printf '%s' '${Buffer.from(content).toString('base64')}' | base64 -d > '${path}'`
+    expect(units.length).toBeLessThanOrEqual(64 * 1024)
+    expect(Buffer.byteLength(units)).toBeGreaterThan(64 * 1024)
+    await expect(dock.docks.files.write(ID, path, content)).rejects.toMatchObject({
+      code: 'validation_error',
+      status: 0,
+    })
+    expect(server.requests).toHaveLength(0)
   })
 
   it('rejects empty and NUL paths', async () => {
