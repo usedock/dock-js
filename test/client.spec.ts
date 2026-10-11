@@ -118,6 +118,9 @@ describe('connectors', () => {
     ['connector_not_found', 404],
     ['image_unknown', 400],
     ['image_unavailable', 400],
+    ['port_not_found', 404],
+    ['port_limit_reached', 409],
+    ['ports_unavailable', 503],
   ] as const)('surfaces %s as a DockError', async (code, status) => {
     const { dock } = await setup(() => ({ status, body: { ok: false, code, message: 'nope' } }))
     const err = await dock.docks.create({ connectors: ['slack'] }).catch((e) => e)

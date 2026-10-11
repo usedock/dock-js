@@ -10,6 +10,12 @@ export const ErrorCodes = {
   imageUnknown: 'image_unknown',
   /** 400: the image is in the catalog but no host serves it yet. */
   imageUnavailable: 'image_unavailable',
+  /** 404: closing a port that is not exposed. */
+  portNotFound: 'port_not_found',
+  /** 409: a Dock already exposes the maximum of 10 ports. */
+  portLimitReached: 'port_limit_reached',
+  /** 503: hosted ports are not configured on this deployment. */
+  portsUnavailable: 'ports_unavailable',
 } as const
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]
