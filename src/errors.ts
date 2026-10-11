@@ -1,3 +1,19 @@
+/** API error codes added with connectors and the Dockyard catalog. `DockError.code` may carry any other string too. */
+export const ErrorCodes = {
+  /** 409: a requested connector is not connected in the workspace. */
+  connectorNotConnected: 'connector_not_connected',
+  /** 403: creating or opening a Dock that uses connectors, or connecting one, needs an organization admin. */
+  connectorAdminOnly: 'connector_admin_only',
+  /** 404: disconnecting a connector that is not connected. */
+  connectorNotFound: 'connector_not_found',
+  /** 400: the image name is not in the Dockyard catalog. */
+  imageUnknown: 'image_unknown',
+  /** 400: the image is in the catalog but no host serves it yet. */
+  imageUnavailable: 'image_unavailable',
+} as const
+
+export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]
+
 /** Raised for every failed call: API error envelopes, transport failures and SDK-side validation. */
 export class DockError extends Error {
   /** Stable machine-readable code, for example `dock_not_found` or `validation_error`. */

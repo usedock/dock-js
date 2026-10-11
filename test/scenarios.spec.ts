@@ -121,6 +121,18 @@ async function callOp(dock: Dock, op: string, a: Args): Promise<unknown> {
       return d.branch(a.dockId, rest(a, 'dockId'))
     case 'docks.delete':
       return d.delete(a.dockId)
+    case 'connectors.list':
+      return dock.connectors.list(a.workspaceId)
+    case 'connectors.connect':
+      return dock.connectors.connect(
+        a.workspaceId,
+        a.kind,
+        rest(a, 'workspaceId', 'kind') as { token: string },
+      )
+    case 'connectors.disconnect':
+      return dock.connectors.disconnect(a.workspaceId, a.kind)
+    case 'images.list':
+      return dock.images.list()
     case 'operations.get':
       return dock.operations.get(a.operationId)
     case 'docks.files.write':

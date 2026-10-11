@@ -2,10 +2,15 @@ import { DockError } from './errors.js'
 import { assertCommandSize, assertPath, fromBase64, listCommand, readCommand, writeCommand } from './files.js'
 import type {
   BranchParams,
+  ConnectConnectorParams,
+  Connector,
+  ConnectorKind,
   CreateDockParams,
   DeleteDockResult,
+  DisconnectConnectorResult,
   DockInfo,
   DockStateResult,
+  DockyardImage,
   ExecOptions,
   ExecResult,
   IdempotencyOptions,
@@ -49,6 +54,8 @@ function compact(value: object): Record<string, unknown> {
 export class Dock {
   readonly docks: DocksApi
   readonly operations: OperationsApi
+  readonly connectors: ConnectorsApi
+  readonly images: ImagesApi
   readonly #apiKey: string
   readonly #baseUrl: string
   readonly #fetch: typeof fetch
@@ -66,6 +73,8 @@ export class Dock {
     const send: Send = (o) => this.#request(o)
     this.docks = new DocksApi(send)
     this.operations = new OperationsApi(send)
+    this.connectors = new ConnectorsApi(send)
+    this.images = new ImagesApi(send)
   }
 
   async #request<T>(o: RequestOptions): Promise<T> {
@@ -219,5 +228,36 @@ export class OperationsApi {
 
   get(id: string): Promise<Operation> {
     return this.send({ method: 'GET', path: `/v1/operations/${encodeURIComponent(id)}` })
+  }
+}
+
+const connectorsPath = (workspaceId: string, kind?: string) =>
+  `/v1/workspaces/${encodeURIComponent(workspaceId)}/connectors${kind === undefined ? '' : `/${encodeURIComponent(kind)}`}`
+
+export class ConnectorsApi {
+  constructor(private readonly send: Send) {}
+
+  /** Lists a workspace's connectors with their status: the four tools plus the read-only `github` and `model-keys` entries. */
+  list(workspaceId: string): Promise<Connector[]> {
+    return this.send({ method: 'GET', path: connectorsPath(workspaceId) })
+  }
+
+  /** Connects a tool with a token (organization admins only). Fails with `connector_admin_only` for members. */
+  connect(workspaceId: string, kind: ConnectorKind, params: ConnectConnectorParams): Promise<Connector> {
+    return this.send({ method: 'PUT', path: connectorsPath(workspaceId, kind), body: compact(params) })
+  }
+
+  /** Disconnects a tool (organization admins only). */
+  disconnect(workspaceId: string, kind: ConnectorKind): Promise<DisconnectConnectorResult> {
+    return this.send({ method: 'DELETE', path: connectorsPath(workspaceId, kind) })
+  }
+}
+
+export class ImagesApi {
+  constructor(private readonly send: Send) {}
+
+  /** Lists the Dockyard image catalog with per-image availability. */
+  list(): Promise<DockyardImage[]> {
+    return this.send({ method: 'GET', path: '/v1/images' })
   }
 }

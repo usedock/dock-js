@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { listCommand, writeCommand } from '../src/files.js'
-import { Dock, DockError } from '../src/index.js'
+import { Dock, DockError, ErrorCodes } from '../src/index.js'
 import { type FakeServer, type Handler, startFakeServer } from './fake-server.js'
 
 const ID = '11111111-1111-4111-8111-111111111111'
@@ -62,6 +62,84 @@ describe('construction', () => {
     })
     await dock.docks.list()
     expect(seen).toBe('https://api.usedock.io/v1/docks')
+  })
+})
+
+describe('connectors', () => {
+  const WS = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const view = { kind: 'linear', type: 'tool', status: 'connected', accountLabel: 'a', scopes: [] }
+
+  it('create sends connectors and the Dock object carries them back', async () => {
+    const { dock, server } = await setup(() =>
+      ok({ id: ID, name: 'a', state: 'ready', connectors: ['linear'] }, 201),
+    )
+    const created = await dock.docks.create({ workspaceId: WS, connectors: ['linear', 'slack'] })
+    expect(created.connectors).toEqual(['linear'])
+    expect(server.requests[0]?.body).toMatchObject({ workspaceId: WS, connectors: ['linear', 'slack'] })
+  })
+
+  it('list reads the workspace connectors', async () => {
+    const { dock, server } = await setup(() => ok([view]))
+    expect(await dock.connectors.list(WS)).toEqual([view])
+    expect(server.requests[0]).toMatchObject({ method: 'GET', path: `/v1/workspaces/${WS}/connectors` })
+  })
+
+  it('connect PUTs the token and disconnect DELETEs the kind', async () => {
+    const { dock, server } = await setup((req) =>
+      req.method === 'PUT' ? ok(view) : ok({ kind: 'linear', status: 'not_connected' }),
+    )
+    expect(await dock.connectors.connect(WS, 'linear', { token: 'tok' })).toMatchObject({
+      status: 'connected',
+    })
+    expect(await dock.connectors.disconnect(WS, 'linear')).toEqual({
+      kind: 'linear',
+      status: 'not_connected',
+    })
+    expect(server.requests[0]).toMatchObject({
+      method: 'PUT',
+      path: `/v1/workspaces/${WS}/connectors/linear`,
+      body: { token: 'tok' },
+    })
+    expect(server.requests[1]).toMatchObject({
+      method: 'DELETE',
+      path: `/v1/workspaces/${WS}/connectors/linear`,
+    })
+  })
+
+  it('encodes the kind in the path', async () => {
+    const { dock, server } = await setup(() => ok({ kind: 'x', status: 'not_connected' }))
+    await dock.connectors.disconnect(WS, 'a/b')
+    expect(server.requests[0]?.path).toBe(`/v1/workspaces/${WS}/connectors/a%2Fb`)
+  })
+
+  it.each([
+    ['connector_not_connected', 409],
+    ['connector_admin_only', 403],
+    ['connector_not_found', 404],
+    ['image_unknown', 400],
+    ['image_unavailable', 400],
+  ] as const)('surfaces %s as a DockError', async (code, status) => {
+    const { dock } = await setup(() => ({ status, body: { ok: false, code, message: 'nope' } }))
+    const err = await dock.docks.create({ connectors: ['slack'] }).catch((e) => e)
+    expect(err).toBeInstanceOf(DockError)
+    expect(err).toMatchObject({ code, status })
+    expect(Object.values(ErrorCodes)).toContain(code)
+  })
+})
+
+describe('images', () => {
+  it('list reads the Dockyard catalog', async () => {
+    const image = {
+      name: 'node-22',
+      description: 'd',
+      arch: ['amd64'],
+      sizeMiB: 2048,
+      contents: 'c',
+      available: false,
+    }
+    const { dock, server } = await setup(() => ok([image]))
+    expect(await dock.images.list()).toEqual([image])
+    expect(server.requests[0]).toMatchObject({ method: 'GET', path: '/v1/images' })
   })
 })
 

@@ -57,11 +57,31 @@ console.log((await dock.operations.get(operation.id)).status)
 await dock.docks.delete(copy.id)
 ```
 
+### Connectors and images
+
+```ts
+// Organization admins connect a tool to a workspace with a token; the token is never returned.
+await dock.connectors.connect(workspaceId, 'linear', { token: process.env.LINEAR_TOKEN! })
+console.log((await dock.connectors.list(workspaceId)).map((c) => `${c.kind}: ${c.status}`))
+
+// Attach connectors when creating a Dock; the Dock object reports them back.
+const agent = await dock.docks.create({ workspaceId, image: 'node-22', connectors: ['linear'] })
+console.log(agent.connectors) // ['linear']
+
+await dock.connectors.disconnect(workspaceId, 'linear')
+
+// The Dockyard image catalog, with per-image availability.
+for (const image of await dock.images.list()) console.log(image.name, image.available)
+```
+
 ## API
 
 `new Dock({ apiKey?, baseUrl?, fetch? })`
 
 - `dock.docks.create(params, { idempotencyKey? })`, `list({ filter?, all? })`, `get(id)`, `update(id, params)`
+- `dock.docks.create` also takes `connectors: ['figma' | 'linear' | 'slack' | 'sentry']`; Dock objects carry `connectors`
+- `dock.connectors.list(workspaceId)`, `connect(workspaceId, kind, { token })`, `disconnect(workspaceId, kind)`: `connect` and `disconnect` need an organization admin; `list` returns the four tools plus the read-only `github` and `model-keys` entries
+- `dock.images.list()`: Dockyard images (`name`, `description`, `arch`, `sizeMiB`, `contents`, `available`)
 - `dock.docks.exec(id, command, { timeoutSeconds?, env?, cwd? })`
 - `dock.docks.stop(id, { force? })`, `resume(id, params)` (both return `{ id, state }`), `branch(id, params, { idempotencyKey? })`: return when the host has finished
 - `dock.docks.delete(id)`: returns `{ operation }`; `dock.operations.get(operation.id)` polls it
@@ -90,6 +110,8 @@ try {
 ```
 
 `code` is the API's snake_case code (`dock_not_found`, `validation_error`, `dock_name_taken`, ...). `status` is 0 for failures with no HTTP response: `network_error`, and SDK-side `validation_error` (empty path) and `file_too_large` (oversized file command). Other SDK codes: `missing_api_key`, `invalid_response`, `output_truncated`, `file_command_failed`, `file_too_large`; `http_<status>` is used when the server answers without an error envelope.
+
+Connector and image codes are also exported as `ErrorCodes` (`connectorNotConnected` 409, `connectorAdminOnly` 403, `connectorNotFound` 404, `imageUnknown` 400, `imageUnavailable` 400), so `e.code === ErrorCodes.imageUnknown` works without string literals.
 
 ## Environment variables
 
