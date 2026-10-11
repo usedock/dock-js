@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { fromBase64, listCommand, readCommand, toBase64, writeCommand } from '../src/files.js'
-import { isWslLauncherPath, resolveBash } from './bash.js'
+import { isSafeWindowsBash, isWslLauncherPath, resolveBash } from './bash.js'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const scenariosDir = resolve(repoRoot, process.env.DOCK_SCENARIOS_DIR ?? '../dock/sdk-scenarios')
@@ -143,9 +143,40 @@ describe('resolveBash never picks a WSL launcher', () => {
     'C:\\Windows\\System32\\bash.exe',
     'c:/windows/system32/bash.exe',
     'C:\\Windows\\Sysnative\\bash.exe',
+    'C:\\Windows\\SysWOW64\\bash.exe',
+    'C:\\Windows\\.\\System32\\bash.exe',
+    'C:\\Windows\\Temp\\..\\System32\\bash.exe',
+    'C:\\Windows\\\\System32\\bash.exe',
+    'C:\\Windows\\System32.\\bash.exe',
+    'C:\\Windows\\System32 \\bash.exe',
+    'C:/Windows//System32/bash.exe',
+    'C:\\Users\\me\\AppData\\Local\\Microsoft\\WINDOW~1\\bash.exe',
+    'C:\\PROGRA~1\\Git\\bin\\bash.exe',
+    'C:\\Windows\\System32::$INDEX_ALLOCATION\\bash.exe',
+    'C:\\Windows\\System32:$I30:$INDEX_ALLOCATION\\bash.exe',
+    'C:\\Windows::$INDEX_ALLOCATION\\System32\\bash.exe',
+    'C:/Users/me/AppData/Local/Microsoft/WindowsApps::$INDEX_ALLOCATION/bash.exe',
+    '\\\\?\\C:\\Windows\\System32\\bash.exe',
+    '\\\\.\\C:\\Windows\\System32\\bash.exe',
+    '//?/C:/Windows/System32/bash.exe',
+    '\\\\localhost\\C$\\Windows\\System32\\bash.exe',
     'C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe',
   ])('rejects DOCK_TEST_BASH=%s', (path) => {
     expect(resolveBash('win32', { DOCK_TEST_BASH: path }, () => true).bash).toBeNull()
+  })
+  it('finds scoop Git after Program Files and puts the right usr\\bin first on PATH', () => {
+    const usr = 'C:\\Users\\me\\scoop\\apps\\git\\current\\usr\\bin\\bash.exe'
+    const bin = 'C:\\Users\\me\\scoop\\apps\\git\\current\\bin\\bash.exe'
+    const env = { USERPROFILE: 'C:\\Users\\me', PATH: 'C:\\Windows\\System32' }
+    const scoopUsrBin = 'C:\\Users\\me\\scoop\\apps\\git\\current\\usr\\bin'
+    const both = resolveBash('win32', env, (p) => p === usr || p === bin)
+    expect(both.bash).toBe(usr)
+    if (both.bash !== null) expect(both.env.PATH?.split(';')).toEqual([scoopUsrBin, 'C:\\Windows\\System32'])
+    const only = resolveBash('win32', env, (p) => p === bin)
+    expect(only.bash).toBe(bin)
+    if (only.bash !== null) expect(only.env.PATH?.split(';')[0]).toBe(scoopUsrBin)
+    const pf = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    expect(resolveBash('win32', env, (p) => p === pf || p === usr).bash).toBe(pf)
   })
   it('rejects a DOCK_TEST_BASH that does not exist', () => {
     expect(resolveBash('win32', { DOCK_TEST_BASH: 'C:\\nope\\bash.exe' }, none).bash).toBeNull()
@@ -153,5 +184,7 @@ describe('resolveBash never picks a WSL launcher', () => {
   it('flags launcher locations', () => {
     expect(isWslLauncherPath('C:\\WINDOWS\\system32\\bash.exe')).toBe(true)
     expect(isWslLauncherPath('C:\\Program Files\\Git\\bin\\bash.exe')).toBe(false)
+    expect(isSafeWindowsBash('C:\\Program Files\\Git\\bin\\bash.exe')).toBe(true)
+    expect(isSafeWindowsBash('C:\\Windows\\System32::$INDEX_ALLOCATION\\bash.exe')).toBe(false)
   })
 })
