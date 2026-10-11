@@ -67,7 +67,13 @@ await dock.docks.delete(copy.id)
 - `dock.docks.delete(id)`: returns `{ operation }`; `dock.operations.get(operation.id)` polls it
 - `dock.docks.files.write(id, path, content)`, `read(id, path)`, `list(id, path)`
 
-The API has no file routes. The file helpers run one `exec` call: content travels as base64, paths are shell-quoted, and a write is limited to about 48 KB (the 64 KB exec command limit). A non-zero exit or truncated output is a `DockError` with code `file_error`.
+The API has no file routes. The file helpers run one `exec` call: content travels as base64, paths are shell-quoted, and a write is limited to about 48 KB (the 64 KB exec command limit). `list` returns names in no fixed order (hidden entries included), and a path that is not a directory fails. Names travel base64-encoded, so names with newlines or other odd bytes survive. A failed helper raises a `DockError` with one of these codes, shared with the other SDKs (see the "File helper errors" table in the sdk-scenarios README):
+
+| Code | When |
+|---|---|
+| `output_truncated` | the exec output was truncated, so it is incomplete |
+| `file_command_failed` | the command exited non-zero (including `list` on a path that is not a directory) |
+| `file_too_large` | the command exceeds the 64 KB exec limit (UTF-8 bytes); raised before anything is sent, with status 0 |
 
 Dock responses are typed with only `id`, `name` and `state` required; unknown fields are kept.
 
@@ -83,7 +89,7 @@ try {
 }
 ```
 
-`code` is the API's snake_case code (`dock_not_found`, `validation_error`, `dock_name_taken`, ...). `status` is 0 for failures with no HTTP response: `network_error`, and SDK-side `validation_error` (oversized file content, empty path). Other SDK codes: `missing_api_key`, `invalid_response`, `file_error`; `http_<status>` is used when the server answers without an error envelope.
+`code` is the API's snake_case code (`dock_not_found`, `validation_error`, `dock_name_taken`, ...). `status` is 0 for failures with no HTTP response: `network_error`, and SDK-side `validation_error` (empty path) and `file_too_large` (oversized file command). Other SDK codes: `missing_api_key`, `invalid_response`, `output_truncated`, `file_command_failed`, `file_too_large`; `http_<status>` is used when the server answers without an error envelope.
 
 ## Environment variables
 
