@@ -13,9 +13,12 @@ import type {
   DockyardImage,
   ExecOptions,
   ExecResult,
+  ExposePortParams,
   IdempotencyOptions,
   ListDocksParams,
   Operation,
+  Port,
+  RemovePortResult,
   ResumeParams,
   StopOptions,
   UpdateDockParams,
@@ -165,11 +168,38 @@ export class FilesApi {
   }
 }
 
+export class PortsApi {
+  constructor(private readonly send: Send) {}
+
+  /** Lists the Dock's exposed ports. `url` is null while hosted ports are off. */
+  list(dockId: string): Promise<Port[]> {
+    return this.send({ method: 'GET', path: dockPath(dockId, '/ports') })
+  }
+
+  /**
+   * Exposes a port, `private` unless `visibility` says otherwise. Exposing an exposed port again returns the
+   * same URL; passing `visibility` then changes it, and leaving it out keeps the current one.
+   */
+  expose(dockId: string, port: number, params: ExposePortParams = {}): Promise<Port> {
+    return this.send({ method: 'POST', path: dockPath(dockId, '/ports'), body: compact({ ...params, port }) })
+  }
+
+  /** Unexposes a port; its URL stops resolving at once. Fails with `port_not_found` when it is not exposed. */
+  remove(dockId: string, port: number): Promise<RemovePortResult> {
+    return this.send({
+      method: 'DELETE',
+      path: dockPath(dockId, `/ports/${encodeURIComponent(String(port))}`),
+    })
+  }
+}
+
 export class DocksApi {
   readonly files: FilesApi
+  readonly ports: PortsApi
 
   constructor(private readonly send: Send) {
     this.files = new FilesApi(this)
+    this.ports = new PortsApi(send)
   }
 
   create(params: CreateDockParams = {}, options: IdempotencyOptions = {}): Promise<DockInfo> {

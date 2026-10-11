@@ -143,6 +143,49 @@ describe('images', () => {
   })
 })
 
+describe('ports', () => {
+  const port = { port: 3000, visibility: 'private', url: 'https://x.example', createdAt: 't', extra: 1 }
+
+  it('list reads the exposed ports', async () => {
+    const { dock, server } = await setup(() => ok([port]))
+    expect(await dock.docks.ports.list(ID)).toEqual([port])
+    expect(server.requests[0]).toMatchObject({ method: 'GET', path: `/v1/docks/${ID}/ports` })
+  })
+
+  it('expose sends the port and visibility', async () => {
+    const { dock, server } = await setup(() => ok({ ...port, visibility: 'public' }, 201))
+    const res = await dock.docks.ports.expose(ID, 3000, { visibility: 'public' })
+    expect(res.visibility).toBe('public')
+    expect(server.requests[0]).toMatchObject({
+      method: 'POST',
+      path: `/v1/docks/${ID}/ports`,
+      body: { port: 3000, visibility: 'public' },
+    })
+  })
+
+  it('expose omits visibility when not given', async () => {
+    const { dock, server } = await setup(() => ok(port, 201))
+    await dock.docks.ports.expose(ID, 3000)
+    expect(server.requests[0]?.rawBody).toBe('{"port":3000}')
+  })
+
+  it('remove DELETEs the port', async () => {
+    const { dock, server } = await setup(() => ok({ deleted: true }))
+    expect(await dock.docks.ports.remove(ID, 3000)).toEqual({ deleted: true })
+    expect(server.requests[0]).toMatchObject({ method: 'DELETE', path: `/v1/docks/${ID}/ports/3000` })
+  })
+
+  it('surfaces port_not_found as a DockError', async () => {
+    const { dock } = await setup(() => ({
+      status: 404,
+      body: { ok: false, code: 'port_not_found', message: 'n' },
+    }))
+    const err = await dock.docks.ports.remove(ID, 1).catch((e) => e)
+    expect(err).toBeInstanceOf(DockError)
+    expect(err).toMatchObject({ code: 'port_not_found', status: 404 })
+  })
+})
+
 describe('docks', () => {
   it('create posts the body, omits undefined fields and sends the bearer key', async () => {
     const { dock, server } = await setup(() => ok({ id: ID, name: 'a', state: 'ready', extra: 1 }, 201))
