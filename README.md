@@ -14,7 +14,15 @@ Not on npm yet. Install straight from GitHub with npm; a `prepare` script builds
 npm install github:usedock/dock-js
 ```
 
-bun and pnpm 10 block build scripts of git dependencies by default, and bun does not install their dev dependencies, so `bun add github:usedock/dock-js` gives a package without `dist/`. Build a tarball with npm and install that instead:
+bun and pnpm 10 block build scripts of git dependencies by default, and bun does not install their dev dependencies, so `bun add github:usedock/dock-js` gives a package without `dist/`. Until the package is on npm, Bun users build from source and add the checkout as a path dependency (bun's "blocked postinstall" notice is harmless here, `dist/` is already built):
+
+```sh
+git clone https://github.com/usedock/dock-js.git
+cd dock-js && bun install && bun run build && cd ..
+cd your-app && bun add ../dock-js
+```
+
+Or build a tarball with npm and install that (also works for pnpm):
 
 ```sh
 npm pack github:usedock/dock-js   # writes usedock-sdk-<version>.tgz
