@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { fromBase64, listCommand, readCommand, toBase64, writeCommand } from '../src/files.js'
+import { isWslLauncherPath, resolveBash } from './bash.js'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const scenariosDir = resolve(repoRoot, process.env.DOCK_SCENARIOS_DIR ?? '../dock/sdk-scenarios')
@@ -29,17 +30,26 @@ describe('commands match the sdk-scenarios fixtures', () => {
   })
 })
 
-const bashOk = (() => {
-  const probe = spawnSync('bash', ['-c', 'base64 -w0 </dev/null && find -H . -maxdepth 0'])
-  return probe.status === 0
+// Never a bare `bash` on Windows: it can be the WSL launcher (see ./bash.ts).
+const resolved = resolveBash()
+const bashSkip = (() => {
+  if (resolved.bash === null) return resolved.reason
+  const probe = spawnSync(resolved.bash, ['-c', 'base64 -w0 </dev/null && find -H . -maxdepth 0'], {
+    env: resolved.env,
+  })
+  return probe.status === 0 ? null : 'bash lacks GNU base64 or GNU find'
 })()
-if (!bashOk && process.env.CI) {
-  throw new Error('CI must have bash with GNU base64 and find to run the file command tests')
+if (bashSkip && process.env.CI) {
+  throw new Error(`CI must run the file command tests in bash: ${bashSkip}`)
+}
+const bashOk = bashSkip === null
+
+const bash = (cwd: string, command: string) => {
+  if (resolved.bash === null) throw new Error(resolved.reason)
+  return spawnSync(resolved.bash, ['-c', command], { cwd, encoding: 'utf8', env: resolved.env })
 }
 
-const bash = (cwd: string, command: string) => spawnSync('bash', ['-c', command], { cwd, encoding: 'utf8' })
-
-describe.skipIf(!bashOk)('commands run in bash (skipped without bash, GNU base64 and GNU find)', () => {
+describe.skipIf(!bashOk)(`commands run in bash${bashSkip ? ` (skipped: ${bashSkip})` : ''}`, () => {
   const names = [
     "it's.txt",
     '-n.txt',
@@ -102,5 +112,46 @@ describe.skipIf(!bashOk)('commands run in bash (skipped without bash, GNU base64
 
   it('base64 helper is the inverse of the decode used for read and list', () => {
     expect(fromBase64(toBase64('a\nb é'))).toBe('a\nb é')
+  })
+})
+
+describe('resolveBash never picks a WSL launcher', () => {
+  const none = () => false
+  it('uses bash from PATH off Windows', () => {
+    expect(resolveBash('linux', {}, none)).toMatchObject({ bash: 'bash' })
+  })
+  it('skips on Windows with no Git Bash and no DOCK_TEST_BASH', () => {
+    expect(resolveBash('win32', { PATH: 'C:\\Windows\\System32' }, none).bash).toBeNull()
+  })
+  it('finds Git Bash under Program Files and puts its usr\\bin first on PATH', () => {
+    const git = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    const r = resolveBash('win32', { Path: 'C:\\Windows\\System32' }, (p) => p === git)
+    expect(r.bash).toBe(git)
+    if (r.bash === null) return
+    expect(r.env.Path?.split(';')[0]).toBe('C:\\Program Files\\Git\\usr\\bin')
+    expect(r.env.Path?.endsWith('C:\\Windows\\System32')).toBe(true)
+  })
+  it('accepts an absolute DOCK_TEST_BASH that exists', () => {
+    const custom = 'D:\\scoop\\apps\\git\\current\\usr\\bin\\bash.exe'
+    expect(resolveBash('win32', { DOCK_TEST_BASH: custom }, (p) => p === custom).bash).toBe(custom)
+  })
+  it.each([
+    'bash',
+    'bash.exe',
+    '.\\bash.exe',
+    '\\Windows\\System32\\bash.exe',
+    'C:\\Windows\\System32\\bash.exe',
+    'c:/windows/system32/bash.exe',
+    'C:\\Windows\\Sysnative\\bash.exe',
+    'C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe',
+  ])('rejects DOCK_TEST_BASH=%s', (path) => {
+    expect(resolveBash('win32', { DOCK_TEST_BASH: path }, () => true).bash).toBeNull()
+  })
+  it('rejects a DOCK_TEST_BASH that does not exist', () => {
+    expect(resolveBash('win32', { DOCK_TEST_BASH: 'C:\\nope\\bash.exe' }, none).bash).toBeNull()
+  })
+  it('flags launcher locations', () => {
+    expect(isWslLauncherPath('C:\\WINDOWS\\system32\\bash.exe')).toBe(true)
+    expect(isWslLauncherPath('C:\\Program Files\\Git\\bin\\bash.exe')).toBe(false)
   })
 })
