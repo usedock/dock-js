@@ -186,7 +186,10 @@ export class PortsApi {
 
   /** Unexposes a port; its URL stops resolving at once. Fails with `port_not_found` when it is not exposed. */
   remove(dockId: string, port: number): Promise<RemovePortResult> {
-    return this.send({ method: 'DELETE', path: dockPath(dockId, `/ports/${encodeURIComponent(String(port))}`) })
+    return this.send({
+      method: 'DELETE',
+      path: dockPath(dockId, `/ports/${encodeURIComponent(String(port))}`),
+    })
   }
 }
 

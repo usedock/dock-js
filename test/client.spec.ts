@@ -176,7 +176,10 @@ describe('ports', () => {
   })
 
   it('surfaces port_not_found as a DockError', async () => {
-    const { dock } = await setup(() => ({ status: 404, body: { ok: false, code: 'port_not_found', message: 'n' } }))
+    const { dock } = await setup(() => ({
+      status: 404,
+      body: { ok: false, code: 'port_not_found', message: 'n' },
+    }))
     const err = await dock.docks.ports.remove(ID, 1).catch((e) => e)
     expect(err).toBeInstanceOf(DockError)
     expect(err).toMatchObject({ code: 'port_not_found', status: 404 })
