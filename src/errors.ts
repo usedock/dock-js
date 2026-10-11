@@ -2,7 +2,7 @@
 export const ErrorCodes = {
   /** 409: a requested connector is not connected in the workspace. */
   connectorNotConnected: 'connector_not_connected',
-  /** 403: creating or opening a Dock that uses connectors, or connecting one, needs an organization admin. */
+  /** 403: creating, branching or opening a Dock that uses connectors needs an organization admin (or, to open it, its creator). */
   connectorAdminOnly: 'connector_admin_only',
   /** 404: disconnecting a connector that is not connected. */
   connectorNotFound: 'connector_not_found',

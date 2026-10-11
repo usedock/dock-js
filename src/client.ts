@@ -242,12 +242,12 @@ export class ConnectorsApi {
     return this.send({ method: 'GET', path: connectorsPath(workspaceId) })
   }
 
-  /** Connects a tool with a token (organization admins only). Fails with `connector_admin_only` for members. */
+  /** Connects a tool with a token (organization admins only; members get 403 `forbidden`). */
   connect(workspaceId: string, kind: ConnectorKind, params: ConnectConnectorParams): Promise<Connector> {
     return this.send({ method: 'PUT', path: connectorsPath(workspaceId, kind), body: compact(params) })
   }
 
-  /** Disconnects a tool (organization admins only). */
+  /** Disconnects a tool (organization admins only). Fails with `connector_not_found` when it is not connected. */
   disconnect(workspaceId: string, kind: ConnectorKind): Promise<DisconnectConnectorResult> {
     return this.send({ method: 'DELETE', path: connectorsPath(workspaceId, kind) })
   }
