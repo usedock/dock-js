@@ -16,23 +16,38 @@ export function fromBase64(text: string): string {
   return Buffer.from(text, 'base64').toString('utf8')
 }
 
+/**
+ * Renders the docks.files.write template of sdk-scenarios/ops.yaml. dirname runs with an "x"
+ * sentinel so a path ending in a newline keeps it ($(...) would strip it); "${d%??}" then drops
+ * the sentinel and its newline.
+ */
 export function writeCommand(path: string, content: string): string {
-  const quoted = shellQuote(path)
-  const command = `mkdir -p -- "$(dirname -- ${quoted})" && printf '%s' '${toBase64(content)}' | base64 -d > ${quoted}`
+  const q = shellQuote(path)
+  return `d=$(dirname -- ${q}; echo x) && mkdir -p -- "\${d%??}" && printf '%s' '${toBase64(content)}' | base64 -d > ${q}`
+}
+
+/** Renders the docks.files.read template. */
+export const readCommand = (path: string) => `base64 -w0 -- ${shellQuote(path)}`
+
+/**
+ * Renders the docks.files.list template: a relative path gets ./ so find never reads it as an
+ * expression, -H follows a symlinked directory, and each entry name is printed base64-encoded on
+ * its own line.
+ */
+export const listCommand = (path: string) =>
+  `p=${shellQuote(path)} && case $p in /*) ;; *) p=./$p ;; esac && test -d "$p" && find -H "$p" -mindepth 1 -maxdepth 1 -exec sh -c 'for f; do printf "%s" "\${f##*/}" | base64 -w0; echo; done' sh {} +`
+
+/** Raises `file_too_large` when the rendered command exceeds the exec limit (UTF-8 bytes). */
+export function assertCommandSize(command: string): void {
   const bytes = Buffer.byteLength(command, 'utf8')
   if (bytes > MAX_COMMAND_BYTES) {
     throw new DockError(
-      'validation_error',
-      `File content is too large for one write (command would be ${bytes} bytes, limit ${MAX_COMMAND_BYTES}; about 48 KB of content)`,
+      'file_too_large',
+      `File command is too large (${bytes} bytes, limit ${MAX_COMMAND_BYTES}; a write holds about 48 KB of content)`,
       0,
     )
   }
-  return command
 }
-
-export const readCommand = (path: string) => `base64 -w0 -- ${shellQuote(path)}`
-
-export const listCommand = (path: string) => `ls -1A -- ${shellQuote(path)}`
 
 export function assertPath(path: string): void {
   if (typeof path !== 'string' || path === '' || path.includes('\0')) {

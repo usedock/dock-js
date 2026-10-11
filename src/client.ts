@@ -1,5 +1,5 @@
 import { DockError } from './errors.js'
-import { assertPath, fromBase64, listCommand, readCommand, writeCommand } from './files.js'
+import { assertCommandSize, assertPath, fromBase64, listCommand, readCommand, writeCommand } from './files.js'
 import type {
   BranchParams,
   CreateDockParams,
@@ -132,24 +132,25 @@ export class FilesApi {
     return fromBase64(await this.#run(id, path, readCommand(path), 'read'))
   }
 
-  /** Lists entry names in a directory (`ls -1A` order), including dotfiles. */
+  /** Lists entry names in a directory, including dotfiles, in no fixed order. A non-directory fails. */
   async list(id: string, path: string): Promise<string[]> {
     assertPath(path)
     const out = await this.#run(id, path, listCommand(path), 'list')
-    return out.split('\n').filter(Boolean)
+    return out.split('\n').filter(Boolean).map(fromBase64)
   }
 
   async #run(id: string, path: string, command: string, verb: string): Promise<string> {
+    assertCommandSize(command)
     const res = await this.docks.exec(id, command)
     if (res.exitCode !== 0) {
       throw new DockError(
-        'file_error',
+        'file_command_failed',
         `Could not ${verb} ${path}: exit ${res.exitCode}${res.stderr ? `: ${res.stderr.trim()}` : ''}`,
         200,
       )
     }
     if (res.truncated) {
-      throw new DockError('file_error', `Could not ${verb} ${path}: output was truncated`, 200)
+      throw new DockError('output_truncated', `Could not ${verb} ${path}: output was truncated`, 200)
     }
     return res.stdout
   }

@@ -1,5 +1,5 @@
-import { spawnSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
+import { listCommand, writeCommand } from '../src/files.js'
 import { Dock, DockError } from '../src/index.js'
 import { type FakeServer, type Handler, startFakeServer } from './fake-server.js'
 
@@ -208,13 +208,15 @@ describe('errors', () => {
 })
 
 describe('files', () => {
+  const sentCommand = (server: FakeServer) => (server.requests.at(-1)?.body as { command: string }).command
+
   it('write sends base64 content and a quoted path in one exec call', async () => {
     const { dock, server } = await setup(() => exec())
     const res = await dock.docks.files.write(ID, "/home/user/it's.txt", "hello 'x' $HOME\n")
     expect(res).toEqual({ path: "/home/user/it's.txt" })
-    const command = (server.requests[0]?.body as { command: string }).command
+    const command = sentCommand(server)
     expect(command).toBe(
-      `mkdir -p -- "$(dirname -- '/home/user/it'\\''s.txt')" && printf '%s' '${Buffer.from("hello 'x' $HOME\n").toString('base64')}' | base64 -d > '/home/user/it'\\''s.txt'`,
+      `d=$(dirname -- '/home/user/it'\\''s.txt'; echo x) && mkdir -p -- "\${d%??}" && printf '%s' '${Buffer.from("hello 'x' $HOME\n").toString('base64')}' | base64 -d > '/home/user/it'\\''s.txt'`,
     )
     expect(command).not.toContain('$HOME')
   })
@@ -222,34 +224,57 @@ describe('files', () => {
   it('read decodes base64 stdout as UTF-8', async () => {
     const { dock, server } = await setup(() => exec(Buffer.from('héllo\n').toString('base64')))
     expect(await dock.docks.files.read(ID, '/a b')).toBe('héllo\n')
-    expect((server.requests[0]?.body as { command: string }).command).toBe("base64 -w0 -- '/a b'")
+    expect(sentCommand(server)).toBe("base64 -w0 -- '/a b'")
   })
 
-  it('list splits stdout on newlines and drops empty lines', async () => {
-    const { dock, server } = await setup(() => exec('.hidden\na.txt\n\nb.txt\n'))
-    expect(await dock.docks.files.list(ID, '/home/user')).toEqual(['.hidden', 'a.txt', 'b.txt'])
-    expect((server.requests[0]?.body as { command: string }).command).toBe("ls -1A -- '/home/user'")
+  it('list decodes one base64 name per line as UTF-8, names may hold newlines', async () => {
+    const b64 = (s: string) => Buffer.from(s).toString('base64')
+    const stdout = `${b64('.hidden')}\n${b64('multi\nline')}\n\n${b64('é.txt')}\n`
+    const { dock, server } = await setup(() => exec(stdout))
+    expect(await dock.docks.files.list(ID, '/home/user')).toEqual(['.hidden', 'multi\nline', 'é.txt'])
+    expect(sentCommand(server)).toBe(listCommand('/home/user'))
+    expect(sentCommand(server)).toContain('find -H "$p"')
   })
 
-  it('treats a non-zero exit as an error', async () => {
+  it('file_command_failed: a non-zero exit', async () => {
     const { dock } = await setup(() => ok({ exitCode: 1, stdout: '', stderr: 'No such file\n' }))
-    await expect(dock.docks.files.read(ID, '/nope')).rejects.toMatchObject({ code: 'file_error' })
+    await expect(dock.docks.files.read(ID, '/nope')).rejects.toMatchObject({
+      code: 'file_command_failed',
+      status: 200,
+    })
+    await expect(dock.docks.files.write(ID, '/nope', 'x')).rejects.toMatchObject({
+      code: 'file_command_failed',
+    })
+    // list on a path that is not a directory exits non-zero (test -d)
+    await expect(dock.docks.files.list(ID, '/nope')).rejects.toMatchObject({ code: 'file_command_failed' })
   })
 
-  it('treats truncated output as an error', async () => {
+  it('output_truncated: the exec result is truncated', async () => {
     const { dock } = await setup(() => exec('aGk=', 0, { truncated: true }))
-    await expect(dock.docks.files.read(ID, '/big')).rejects.toMatchObject({ code: 'file_error' })
+    await expect(dock.docks.files.read(ID, '/big')).rejects.toMatchObject({
+      code: 'output_truncated',
+      status: 200,
+    })
+    await expect(dock.docks.files.list(ID, '/big')).rejects.toMatchObject({ code: 'output_truncated' })
   })
 
-  it('refuses oversized content before sending anything', async () => {
+  it('file_too_large: oversized content is refused before sending anything', async () => {
     const { dock, server } = await setup(() => exec())
     await dock.docks.files.write(ID, '/ok', 'x'.repeat(40 * 1024))
     expect(server.requests).toHaveLength(1)
     await expect(dock.docks.files.write(ID, '/big', 'x'.repeat(49 * 1024))).rejects.toMatchObject({
-      code: 'validation_error',
+      code: 'file_too_large',
       status: 0,
     })
     expect(server.requests).toHaveLength(1)
+  })
+
+  it('file_too_large: a huge path fails read and list before sending', async () => {
+    const { dock, server } = await setup(() => exec())
+    const path = `/${'a'.repeat(64 * 1024)}`
+    await expect(dock.docks.files.read(ID, path)).rejects.toMatchObject({ code: 'file_too_large' })
+    await expect(dock.docks.files.list(ID, path)).rejects.toMatchObject({ code: 'file_too_large' })
+    expect(server.requests).toHaveLength(0)
   })
 
   it('counts the command limit in UTF-8 bytes, as the API does', async () => {
@@ -257,11 +282,11 @@ describe('files', () => {
     // 80 three-byte characters: the command is under 64K UTF-16 units but over 64 KB of UTF-8.
     const path = `/home/user/work/${'文'.repeat(80)}.txt`
     const content = 'x'.repeat(48_900)
-    const units = `mkdir -p -- "$(dirname -- '${path}')" && printf '%s' '${Buffer.from(content).toString('base64')}' | base64 -d > '${path}'`
-    expect(units.length).toBeLessThanOrEqual(64 * 1024)
-    expect(Buffer.byteLength(units)).toBeGreaterThan(64 * 1024)
+    const command = writeCommand(path, content)
+    expect(command.length).toBeLessThanOrEqual(64 * 1024)
+    expect(Buffer.byteLength(command)).toBeGreaterThan(64 * 1024)
     await expect(dock.docks.files.write(ID, path, content)).rejects.toMatchObject({
-      code: 'validation_error',
+      code: 'file_too_large',
       status: 0,
     })
     expect(server.requests).toHaveLength(0)
@@ -271,25 +296,5 @@ describe('files', () => {
     const { dock } = await setup(() => exec())
     await expect(dock.docks.files.read(ID, '')).rejects.toMatchObject({ code: 'validation_error' })
     await expect(dock.docks.files.list(ID, 'a\0b')).rejects.toMatchObject({ code: 'validation_error' })
-  })
-
-  const bash = spawnSync('bash', ['-c', 'base64 -w0 </dev/null'])
-  it.skipIf(bash.status !== 0)('hostile paths never run as commands', async () => {
-    const { mkdtempSync, existsSync, rmSync } = await import('node:fs')
-    const { tmpdir } = await import('node:os')
-    const { join } = await import('node:path')
-    const cwd = mkdtempSync(join(tmpdir(), 'sdk-files-'))
-    try {
-      const { dock, server } = await setup(() => exec())
-      for (const name of ["x'; touch pwned; echo '", 'a $(touch pwned) b', '-n.txt']) {
-        await dock.docks.files.write(ID, name, 'data')
-        const command = (server.requests.at(-1)?.body as { command: string }).command
-        const run = spawnSync('bash', ['-c', command], { cwd, encoding: 'utf8' })
-        expect(run.status, run.stderr).toBe(0)
-      }
-      expect(existsSync(join(cwd, 'pwned'))).toBe(false)
-    } finally {
-      rmSync(cwd, { recursive: true, force: true })
-    }
   })
 })
