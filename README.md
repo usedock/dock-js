@@ -74,6 +74,20 @@ await dock.connectors.disconnect(workspaceId, 'linear')
 for (const image of await dock.images.list()) console.log(image.name, image.available)
 ```
 
+### Ports
+
+```ts
+// New ports are private: the URL needs a Dock-bound API key or an organization member's sign-in.
+const web = await dock.docks.ports.expose(dockId, 3000)
+console.log(web.url, web.visibility) // https://..., 'private'
+
+// Open it to anyone with the URL (webhooks, demos). Exposing again with a visibility changes it.
+await dock.docks.ports.expose(dockId, 3000, { visibility: 'public' })
+
+console.log(await dock.docks.ports.list(dockId))
+await dock.docks.ports.remove(dockId, 3000)
+```
+
 ## API
 
 `new Dock({ apiKey?, baseUrl?, fetch? })`
@@ -85,6 +99,7 @@ for (const image of await dock.images.list()) console.log(image.name, image.avai
 - `dock.docks.exec(id, command, { timeoutSeconds?, env?, cwd? })`
 - `dock.docks.stop(id, { force? })`, `resume(id, params)` (both return `{ id, state }`), `branch(id, params, { idempotencyKey? })`: return when the host has finished
 - `dock.docks.delete(id)`: returns `{ operation }`; `dock.operations.get(operation.id)` polls it
+- `dock.docks.ports.list(id)`, `expose(id, port, { visibility? })`, `remove(id, port)`: ports are `{ port, visibility, url, createdAt }`; `visibility` is `'public' | 'private'`, default `private` for a new port
 - `dock.docks.files.write(id, path, content)`, `read(id, path)`, `list(id, path)`
 
 The API has no file routes. The file helpers run one `exec` call: content travels as base64, paths are shell-quoted, and a write is limited to about 48 KB (the 64 KB exec command limit). `list` returns names in no fixed order (hidden entries included), and a path that is not a directory fails. Names travel base64-encoded, so names with newlines or other odd bytes survive. A failed helper raises a `DockError` with one of these codes, shared with the other SDKs (see the "File helper errors" table in the sdk-scenarios README):

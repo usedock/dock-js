@@ -164,3 +164,28 @@ export interface DockyardImage {
   available: boolean
   [key: string]: unknown
 }
+
+/** Who may open a port URL: `private` needs a Dock credential or an organization member sign-in, `public` is open. */
+export type PortVisibility = 'public' | 'private'
+
+/** An exposed Dock port as `docks.ports.list` and `docks.ports.expose` return it. */
+export interface Port {
+  port: number
+  /** Ports exposed before visibility existed read as `public`. */
+  visibility: PortVisibility
+  /** Null while hosted ports are off on this deployment. */
+  url: string | null
+  createdAt: string
+  [key: string]: unknown
+}
+
+export interface ExposePortParams {
+  /** Defaults to `private` for a new port; for an exposed port, omitting it keeps the current visibility. */
+  visibility?: PortVisibility
+}
+
+/** What `docks.ports.remove` returns. */
+export interface RemovePortResult {
+  deleted: boolean
+  [key: string]: unknown
+}
