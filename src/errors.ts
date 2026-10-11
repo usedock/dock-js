@@ -4,6 +4,10 @@ export const ErrorCodes = {
   connectorNotConnected: 'connector_not_connected',
   /** 403: creating, branching or opening a Dock that uses connectors needs an organization admin (or, to open it, its creator). */
   connectorAdminOnly: 'connector_admin_only',
+  /** 400: the vendor rejected the token passed to `connectors.connect`. */
+  connectorTokenInvalid: 'connector_token_invalid',
+  /** 502: the vendor could not be reached while verifying the token. */
+  connectorUnreachable: 'connector_unreachable',
   /** 404: disconnecting a connector that is not connected. */
   connectorNotFound: 'connector_not_found',
   /** 400: the image name is not in the Dockyard catalog. */

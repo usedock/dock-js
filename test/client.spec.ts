@@ -116,6 +116,8 @@ describe('connectors', () => {
     ['connector_not_connected', 409],
     ['connector_admin_only', 403],
     ['connector_not_found', 404],
+    ['connector_token_invalid', 400],
+    ['connector_unreachable', 502],
     ['image_unknown', 400],
     ['image_unavailable', 400],
     ['port_not_found', 404],
@@ -127,6 +129,54 @@ describe('connectors', () => {
     expect(err).toBeInstanceOf(DockError)
     expect(err).toMatchObject({ code, status })
     expect(Object.values(ErrorCodes)).toContain(code)
+  })
+})
+
+describe('connectors credentialType', () => {
+  it('list carries credentialType, null when not connected', async () => {
+    const rows = [
+      { kind: 'linear', type: 'tool', status: 'connected', credentialType: 'personal_token' },
+      { kind: 'figma', type: 'tool', status: 'not_connected', credentialType: null },
+    ]
+    const { dock } = await setup(() => ok(rows))
+    const list = await dock.connectors.list('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
+    expect(list.map((c) => c.credentialType)).toEqual(['personal_token', null])
+  })
+})
+
+describe('environments', () => {
+  const ORG = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const env = { id: 'e1', organizationId: ORG, name: 'base', providerKeys: 'gateway' }
+
+  it('list and get read providerKeys', async () => {
+    const { dock, server } = await setup((req) => (req.path === '/v1/environments' ? ok([env]) : ok(env)))
+    expect((await dock.environments.list(ORG))[0]?.providerKeys).toBe('gateway')
+    expect((await dock.environments.get('base', { organizationId: ORG })).providerKeys).toBe('gateway')
+    expect(server.requests[0]).toMatchObject({ method: 'GET', path: '/v1/environments' })
+    expect(server.requests[1]?.path).toBe('/v1/environments/base')
+  })
+
+  it('update PATCHes providerKeys', async () => {
+    const { dock, server } = await setup(() => ok({ ...env, providerKeys: 'plain' }))
+    const updated = await dock.environments.update('base', { providerKeys: 'plain' }, { organizationId: ORG })
+    expect(updated.providerKeys).toBe('plain')
+    expect(server.requests[0]).toMatchObject({
+      method: 'PATCH',
+      path: '/v1/environments/base',
+      body: { providerKeys: 'plain' },
+    })
+  })
+
+  it('update sends egressAllow null to clear and a list to set', async () => {
+    const { dock, server } = await setup(() => ok(env))
+    await dock.environments.update('e1', { egressAllow: null })
+    await dock.environments.update('e1', { egressAllow: ['api.example.com'] })
+    await dock.environments.update('e1', { passGithub: false })
+    expect(server.requests.map((r) => r.body)).toEqual([
+      { egressAllow: null },
+      { egressAllow: ['api.example.com'] },
+      { passGithub: false },
+    ])
   })
 })
 

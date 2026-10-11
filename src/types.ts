@@ -137,9 +137,20 @@ export interface Connector {
   scopes: string[]
   oauthAvailable: boolean
   readOnly: boolean
+  /** How the credential was obtained; `null` when not connected or not recorded. */
+  credentialType: ConnectorCredentialType | null
   updatedAt: string | null
   [key: string]: unknown
 }
+
+/** How a connector's credential was obtained. */
+export type ConnectorCredentialType =
+  | 'oauth'
+  | 'personal_token'
+  | 'bot_token'
+  | 'org_token'
+  | 'user_token'
+  | 'token'
 
 export interface ConnectConnectorParams {
   /** Personal or bot token, 1-2048 characters; the API verifies it with the vendor. */
@@ -188,4 +199,59 @@ export interface ExposePortParams {
 export interface RemovePortResult {
   deleted: boolean
   [key: string]: unknown
+}
+
+/**
+ * How an environment's organization provider keys reach docks.
+ * - `gateway` (default): keys stay in the control plane; the dock gets a placeholder key and gateway base URLs.
+ * - `plain`: the real key is written into the dock's environment, so anyone who can run a command in the dock can read it. Weaker; admins only.
+ */
+export type ProviderKeyMode = 'gateway' | 'plain'
+
+/** An environment as `environments.list`, `get` and `update` return it. Variables are listed by name only (`varNames`); values are never returned. */
+export interface Environment {
+  id: string
+  organizationId: string
+  name: string
+  isDefault: boolean
+  currentVersion: number
+  secretsAccess: 'members' | 'admins' | (string & {})
+  safeForThirdParties: boolean
+  passGithub: boolean
+  passSecrets: boolean
+  passDockCredentials: boolean
+  passAgentsCredentials: boolean
+  /** See {@link ProviderKeyMode}. */
+  providerKeys: ProviderKeyMode
+  /** HTTPS hosts docks may reach; `null` leaves egress open minus private ranges. */
+  egressAllow: string[] | null
+  varNames: string[]
+  createdAt: string
+  updatedAt: string
+  [key: string]: unknown
+}
+
+/** Selects the organization when an environment is addressed by name instead of id. */
+export interface EnvironmentRefOptions {
+  organizationId?: string
+}
+
+/**
+ * Fields `environments.update` can change (organization admins only). Posture changes
+ * (the pass flags, `safeForThirdParties`, `providerKeys`, `egressAllow`) create a new
+ * version; `name`, `isDefault` and `secretsAccess` do not.
+ */
+export interface UpdateEnvironmentParams {
+  name?: string
+  isDefault?: boolean
+  secretsAccess?: 'members' | 'admins'
+  safeForThirdParties?: boolean
+  passGithub?: boolean
+  passSecrets?: boolean
+  passDockCredentials?: boolean
+  passAgentsCredentials?: boolean
+  /** See {@link ProviderKeyMode}. */
+  providerKeys?: ProviderKeyMode
+  /** HTTPS hosts (hostnames or `*.suffix`, at most 50); `null` clears the list. An empty list is refused. */
+  egressAllow?: string[] | null
 }

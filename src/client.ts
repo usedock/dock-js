@@ -11,6 +11,8 @@ import type {
   DockInfo,
   DockStateResult,
   DockyardImage,
+  Environment,
+  EnvironmentRefOptions,
   ExecOptions,
   ExecResult,
   ExposePortParams,
@@ -22,6 +24,7 @@ import type {
   ResumeParams,
   StopOptions,
   UpdateDockParams,
+  UpdateEnvironmentParams,
   WriteFileResult,
 } from './types.js'
 
@@ -59,6 +62,7 @@ export class Dock {
   readonly operations: OperationsApi
   readonly connectors: ConnectorsApi
   readonly images: ImagesApi
+  readonly environments: EnvironmentsApi
   readonly #apiKey: string
   readonly #baseUrl: string
   readonly #fetch: typeof fetch
@@ -78,6 +82,7 @@ export class Dock {
     this.operations = new OperationsApi(send)
     this.connectors = new ConnectorsApi(send)
     this.images = new ImagesApi(send)
+    this.environments = new EnvironmentsApi(send)
   }
 
   async #request<T>(o: RequestOptions): Promise<T> {
@@ -289,5 +294,43 @@ export class ImagesApi {
   /** Lists the Dockyard image catalog with per-image availability. */
   list(): Promise<DockyardImage[]> {
     return this.send({ method: 'GET', path: '/v1/images' })
+  }
+}
+
+const environmentPath = (ref: string) => `/v1/environments/${encodeURIComponent(ref)}`
+
+export class EnvironmentsApi {
+  constructor(private readonly send: Send) {}
+
+  /** Lists an organization's environments. */
+  list(organizationId: string): Promise<Environment[]> {
+    return this.send({ method: 'GET', path: '/v1/environments', query: { organizationId } })
+  }
+
+  /** Gets an environment by id or name (pass `organizationId` for a name). */
+  get(ref: string, options: EnvironmentRefOptions = {}): Promise<Environment> {
+    return this.send({
+      method: 'GET',
+      path: environmentPath(ref),
+      query: { organizationId: options.organizationId },
+    })
+  }
+
+  /**
+   * Renames an environment, moves the default or changes its posture, including
+   * `providerKeys` and `egressAllow` (`null` clears it). Needs an organization admin.
+   * Posture changes create a new version; `name`, `isDefault` and `secretsAccess` do not.
+   */
+  update(
+    ref: string,
+    params: UpdateEnvironmentParams,
+    options: EnvironmentRefOptions = {},
+  ): Promise<Environment> {
+    return this.send({
+      method: 'PATCH',
+      path: environmentPath(ref),
+      query: { organizationId: options.organizationId },
+      body: compact(params),
+    })
   }
 }
