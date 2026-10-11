@@ -95,6 +95,7 @@ await dock.docks.ports.remove(dockId, 3000)
 - `dock.docks.create(params, { idempotencyKey? })`, `list({ filter?, all? })`, `get(id)`, `update(id, params)`
 - `dock.docks.create` also takes `connectors: ['figma' | 'linear' | 'slack' | 'sentry']`; Dock objects carry `connectors`
 - `dock.connectors.list(workspaceId)`, `connect(workspaceId, kind, { token })`, `disconnect(workspaceId, kind)`: `connect` and `disconnect` need an organization admin; `list` returns the four tools plus the read-only `github` and `model-keys` entries
+- `dock.environments.list(organizationId)`, `get(ref, { organizationId? })`, `update(ref, params, { organizationId? })`: environments carry `providerKeys: 'gateway' | 'plain'`. `gateway` (default) keeps provider keys in the control plane and gives docks a placeholder plus gateway base URLs; `plain` writes the real key into the dock, so anyone inside it can read it (admins only). Connectors report `credentialType` (`oauth`, `personal_token`, `bot_token`, `org_token`, `user_token`, `token` or `null`)
 - `dock.images.list()`: Dockyard images (`name`, `description`, `arch`, `sizeMiB`, `contents`, `available`)
 - `dock.docks.exec(id, command, { timeoutSeconds?, env?, cwd? })`
 - `dock.docks.stop(id, { force? })`, `resume(id, params)` (both return `{ id, state }`), `branch(id, params, { idempotencyKey? })`: return when the host has finished
@@ -126,7 +127,7 @@ try {
 
 `code` is the API's snake_case code (`dock_not_found`, `validation_error`, `dock_name_taken`, ...). `status` is 0 for failures with no HTTP response: `network_error`, and SDK-side `validation_error` (empty path) and `file_too_large` (oversized file command). Other SDK codes: `missing_api_key`, `invalid_response`, `output_truncated`, `file_command_failed`, `file_too_large`; `http_<status>` is used when the server answers without an error envelope.
 
-Connector, image and port codes are also exported as `ErrorCodes` (`connectorNotConnected` 409, `connectorAdminOnly` 403, `connectorNotFound` 404, `imageUnknown` 400, `imageUnavailable` 400, `portNotFound` 404, `portLimitReached` 409, `portsUnavailable` 503), so `e.code === ErrorCodes.imageUnknown` works without string literals.
+Connector, image and port codes are also exported as `ErrorCodes` (`connectorNotConnected` 409, `connectorAdminOnly` 403, `connectorNotFound` 404, `connectorTokenInvalid` 400, `connectorUnreachable` 502, `imageUnknown` 400, `imageUnavailable` 400, `portNotFound` 404, `portLimitReached` 409, `portsUnavailable` 503), so `e.code === ErrorCodes.imageUnknown` works without string literals.
 
 Port 2222 is reserved for the dock agent and is rejected with `validation_error`. A dock can expose at most 10 ports.
 

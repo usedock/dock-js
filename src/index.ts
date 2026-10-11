@@ -3,6 +3,7 @@ export type {
   ConnectorsApi,
   DockOptions,
   DocksApi,
+  EnvironmentsApi,
   FilesApi,
   ImagesApi,
   OperationsApi,
