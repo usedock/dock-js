@@ -208,7 +208,7 @@ export interface RemovePortResult {
  */
 export type ProviderKeyMode = 'gateway' | 'plain'
 
-/** An environment as `environments.list`, `get` and `update` return it. */
+/** An environment as `environments.list`, `get` and `update` return it. Variables are listed by name only (`varNames`); values are never returned. */
 export interface Environment {
   id: string
   organizationId: string
@@ -236,7 +236,11 @@ export interface EnvironmentRefOptions {
   organizationId?: string
 }
 
-/** Fields `environments.update` can change; posture changes create a new version. */
+/**
+ * Fields `environments.update` can change (organization admins only). Posture changes
+ * (the pass flags, `safeForThirdParties`, `providerKeys`, `egressAllow`) create a new
+ * version; `name`, `isDefault` and `secretsAccess` do not.
+ */
 export interface UpdateEnvironmentParams {
   name?: string
   isDefault?: boolean
@@ -246,7 +250,8 @@ export interface UpdateEnvironmentParams {
   passSecrets?: boolean
   passDockCredentials?: boolean
   passAgentsCredentials?: boolean
-  /** See {@link ProviderKeyMode}. `plain` needs an organization admin. */
+  /** See {@link ProviderKeyMode}. */
   providerKeys?: ProviderKeyMode
+  /** HTTPS hosts (hostnames or `*.suffix`, at most 50); `null` clears the list. An empty list is refused. */
   egressAllow?: string[] | null
 }

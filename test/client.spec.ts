@@ -166,6 +166,18 @@ describe('environments', () => {
       body: { providerKeys: 'plain' },
     })
   })
+
+  it('update sends egressAllow null to clear and a list to set', async () => {
+    const { dock, server } = await setup(() => ok(env))
+    await dock.environments.update('e1', { egressAllow: null })
+    await dock.environments.update('e1', { egressAllow: ['api.example.com'] })
+    await dock.environments.update('e1', { passGithub: false })
+    expect(server.requests.map((r) => r.body)).toEqual([
+      { egressAllow: null },
+      { egressAllow: ['api.example.com'] },
+      { passGithub: false },
+    ])
+  })
 })
 
 describe('images', () => {

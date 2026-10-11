@@ -316,7 +316,11 @@ export class EnvironmentsApi {
     })
   }
 
-  /** Updates posture, including `providerKeys: 'gateway' | 'plain'` (`plain` needs an organization admin). */
+  /**
+   * Renames an environment, moves the default or changes its posture, including
+   * `providerKeys` and `egressAllow` (`null` clears it). Needs an organization admin.
+   * Posture changes create a new version; `name`, `isDefault` and `secretsAccess` do not.
+   */
   update(
     ref: string,
     params: UpdateEnvironmentParams,
