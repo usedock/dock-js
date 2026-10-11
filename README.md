@@ -8,11 +8,17 @@ Zero runtime dependencies. Uses the global `fetch` (Node 18+, Bun).
 
 ## Install
 
-Not on npm yet. Install straight from GitHub; a `prepare` script builds `dist/` on install (needs `typescript`, which npm, pnpm and bun fetch for git dependencies):
+Not on npm yet. Install straight from GitHub with npm; a `prepare` script builds `dist/` on install (npm installs the repo's dev dependencies, including `typescript`, to run it):
 
 ```sh
 npm install github:usedock/dock-js
-bun add github:usedock/dock-js
+```
+
+bun and pnpm 10 block build scripts of git dependencies by default, and bun does not install their dev dependencies, so `bun add github:usedock/dock-js` gives a package without `dist/`. Build a tarball with npm and install that instead:
+
+```sh
+npm pack github:usedock/dock-js   # writes usedock-sdk-<version>.tgz
+bun add ./usedock-sdk-0.0.0.tgz    # or: pnpm add ./usedock-sdk-0.0.0.tgz
 ```
 
 Once published it will be `npm install @usedock/sdk`.

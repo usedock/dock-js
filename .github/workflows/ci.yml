@@ -57,6 +57,15 @@ jobs:
           rm -rf dist
           tarball="$(npm pack --silent --pack-destination "$RUNNER_TEMP")"
           bash scripts/smoke-install.sh "$RUNNER_TEMP/$tarball"
+      - name: Install the packed tarball with bun (the README's bun path)
+        run: |
+          set -euo pipefail
+          tarball="$(ls "$RUNNER_TEMP"/usedock-sdk-*.tgz)"
+          proj="$(mktemp -d)"
+          cd "$proj"
+          echo '{ "name": "smoke", "version": "0.0.0", "private": true, "type": "module" }' > package.json
+          bun add "$tarball"
+          bun -e "const m = await import('@usedock/sdk'); if (typeof m.Dock !== 'function') throw new Error('Dock missing'); console.log('bun import ok')"
       - name: Install from a git URL (committed HEAD)
         run: |
           rm -rf dist
