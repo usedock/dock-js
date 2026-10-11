@@ -10,6 +10,8 @@ export interface DockInfo {
   image?: string
   runtime?: string
   persistentPaths?: string[]
+  /** Connector kinds the Dock may use through the connector gateway. */
+  connectors?: string[]
   [key: string]: unknown
 }
 
@@ -28,6 +30,8 @@ export interface CreateDockParams {
   environment?: string
   /** Skip the workspace default environment. */
   noEnv?: boolean
+  /** Connector kinds to attach (at most 4); each must be connected in the workspace. */
+  connectors?: ConnectorKind[]
   [key: string]: unknown
 }
 
@@ -118,4 +122,45 @@ export interface DockStateResult {
 
 export interface WriteFileResult {
   path: string
+}
+
+/** Tool connectors a Dock can use. The API may add kinds; `string` is accepted wherever a kind is. */
+export type ConnectorKind = 'figma' | 'linear' | 'slack' | 'sentry' | (string & {})
+
+/** A workspace connector as `connectors.list` and `connectors.connect` return it. Tokens are never returned. */
+export interface Connector {
+  kind: string
+  /** `tool` for token or OAuth connectors; `github` and `model-keys` are read-only entries. */
+  type: 'tool' | 'github' | 'model-keys' | (string & {})
+  status: 'connected' | 'not_connected' | 'reauth_required' | (string & {})
+  accountLabel: string | null
+  scopes: string[]
+  oauthAvailable: boolean
+  readOnly: boolean
+  updatedAt: string | null
+  [key: string]: unknown
+}
+
+export interface ConnectConnectorParams {
+  /** Personal or bot token, 1-2048 characters; the API verifies it with the vendor. */
+  token: string
+}
+
+/** What `connectors.disconnect` returns. */
+export interface DisconnectConnectorResult {
+  kind: string
+  status: 'not_connected'
+  [key: string]: unknown
+}
+
+/** A Dockyard image as `images.list` returns it. */
+export interface DockyardImage {
+  name: string
+  description: string
+  arch: string[]
+  sizeMiB: number
+  contents: string
+  /** Whether a host in the fleet currently serves the image. */
+  available: boolean
+  [key: string]: unknown
 }
