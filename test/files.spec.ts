@@ -152,6 +152,14 @@ describe('resolveBash never picks a WSL launcher', () => {
     'C:/Windows//System32/bash.exe',
     'C:\\Users\\me\\AppData\\Local\\Microsoft\\WINDOW~1\\bash.exe',
     'C:\\PROGRA~1\\Git\\bin\\bash.exe',
+    'C:\\Windows\\System32::$INDEX_ALLOCATION\\bash.exe',
+    'C:\\Windows\\System32:$I30:$INDEX_ALLOCATION\\bash.exe',
+    'C:\\Windows::$INDEX_ALLOCATION\\System32\\bash.exe',
+    'C:/Users/me/AppData/Local/Microsoft/WindowsApps::$INDEX_ALLOCATION/bash.exe',
+    '\\\\?\\C:\\Windows\\System32\\bash.exe',
+    '\\\\.\\C:\\Windows\\System32\\bash.exe',
+    '//?/C:/Windows/System32/bash.exe',
+    '\\\\localhost\\C$\\Windows\\System32\\bash.exe',
     'C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe',
   ])('rejects DOCK_TEST_BASH=%s', (path) => {
     expect(resolveBash('win32', { DOCK_TEST_BASH: path }, () => true).bash).toBeNull()
@@ -177,5 +185,6 @@ describe('resolveBash never picks a WSL launcher', () => {
     expect(isWslLauncherPath('C:\\WINDOWS\\system32\\bash.exe')).toBe(true)
     expect(isWslLauncherPath('C:\\Program Files\\Git\\bin\\bash.exe')).toBe(false)
     expect(isSafeWindowsBash('C:\\Program Files\\Git\\bin\\bash.exe')).toBe(true)
+    expect(isSafeWindowsBash('C:\\Windows\\System32::$INDEX_ALLOCATION\\bash.exe')).toBe(false)
   })
 })

@@ -25,14 +25,16 @@ export function isWslLauncherPath(path: string): boolean {
 
 /**
  * A drive-letter absolute path made only of plain segments, outside the launcher directories.
- * Windows drops `.`, `..`, empty and trailing-dot segments and expands 8.3 names (WINDOW~1), so
- * anything else could slip past the text check above.
+ * Windows drops `.`, `..`, empty and trailing-dot segments, expands 8.3 names (WINDOW~1) and opens
+ * a directory through a stream suffix (`System32::$INDEX_ALLOCATION`), so anything else could slip
+ * past the text check above.
  */
 export function isSafeWindowsBash(path: string): boolean {
   const n = path.replace(/\//g, '\\').toLowerCase()
   if (!/^[a-z]:\\/.test(n)) return false
   const segs = n.split('\\').slice(1)
-  if (segs.some((s) => s === '' || s.endsWith('.') || s.endsWith(' ') || s.includes('~'))) return false
+  if (segs.some((s) => s === '' || s.endsWith('.') || s.endsWith(' ') || s.includes('~') || s.includes(':')))
+    return false
   return !isWslLauncherPath(n)
 }
 
